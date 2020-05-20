@@ -1,0 +1,3618 @@
+{
+	"info": {
+		"_postman_id": "cea8de29-6cbb-4f32-9766-5f467e3fe56d",
+		"name": "Meetings RESTful API Examples",
+		"description": "These tests excersise the /meetings API and validate the results.  They are designed to provide developers who are unfamilar with the Meetings API with a set of examples to understand the basic concepts of how to use them.\n\n1) Create a non recurring meeting tommorow and verify it is gettable\n2) Create a recurring meeting starting tommorow recurring daily for 10 instances, and verify it is gettable\n3) Create a second non recurring meeting tommorow and modify some of its attributes\n\n\nBefore running these tests the following environment variables must be set:\n* WEBEX_TOKEN -- an OAuth token for a user configured for meetings in the test environment. These tests require a token with all the meetings scopes and the spark:people_read scopy.  To get started quickly, developers can copy their temporary token from the [Webex For Developers Gettings Started Guide](https://developer.webex.com/docs/api/getting-started#accounts-and-authentication). \n* MEETINGS_API_URL -- the URL of the meetings API under test, generally the default value of \"https://webexapis.com/v1/\" does not need to be changed\n* TIMEZONE_STRING -- the [Time Zone String](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) that you want your results to be returned in (ie: \"America/New_York\" for the US East Coast)\n* UTCOFFSET - the [offset from UTC Time](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) to set your meetings (ie: \"-04:00\" for New York during Daylight Savings Time).   This is used by the tests pre-request scripts to create start and end time parameters that will make sense in your timezone\n* OTHER_USERS_EMAIL -- an email of another CI user to invite to a meeting.  This user must belong to the same org as the caller of the APIs in order for the PUT /meetingInvitees sample to work.\n\nPre set:\n* MAX_RESULTS -- the max number of meetings to query for -- initially set to 2\n\n\n",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Meeting",
+			"item": [
+				{
+					"name": "Create a non recurring meeting for tommorow",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "93feec72-6bab-415b-98d0-d27b3f378818",
+								"exec": [
+									"",
+									"var moment = require('moment');",
+									"// If the \"timezone\" field is set, then the start/end time must match",
+									"// If you are comfortable scheduling everything in UTC times",
+									"// simply omit the timezone field from the request body",
+									"",
+									"// We will use the UTCOFFSET and TIMEZONE_STRING environment variables",
+									"// The API will return an error if these don't match",
+									"var utcoffset = pm.collectionVariables.get(\"UTCOFFSET\");",
+									"// Start tommorow at noon",
+									"let start_time = moment().startOf(\"day\");",
+									"start_time = start_time.add(1, \"day\");",
+									"start_time = start_time.add(12, \"hours\");",
+									"// Format to our timezone, note that milliseconds are not required",
+									"let _start_time = start_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_start_time\", _start_time);",
+									"//pm.collectionVariables.set(\"_start_time\", start_time);",
+									"",
+									"// End at 12:30",
+									"let end_time = start_time;",
+									"end_time = end_time.add(30, 'minutes');",
+									"let _end_time = end_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_end_time\", _end_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "aea66324-9698-45a7-ab46-e189868db0a0",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeeting = pm.response.json();",
+									"pm.collectionVariables.set(\"_theMeeting\", JSON.stringify(theMeeting));",
+									"",
+									"pm.test(\"Response is valid and has an id\", function () {",
+									"    console.log(theMeeting.id);",
+									"    pm.expect(theMeeting.id).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_singleMeetingId\", theMeeting.id);",
+									"    console.log(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"Response has a meeting number\", function () {",
+									"    pm.expect(theMeeting.meetingNumber).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_singleMeetingNumber\", theMeeting.meetingNumber);",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(theMeeting.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(theMeeting.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Recurrance is single\", function () {",
+									"    pm.expect(theMeeting.meetingType).to.equal(\"meetingSeries\");",
+									"});",
+									"",
+									"pm.test(\"Start time is as expected\", function () {",
+									"    pm.expect(theMeeting.start).to.equal(pm.collectionVariables.get(\"_start_time\"));",
+									"});",
+									"",
+									"pm.test(\"End Time time is as expected\", function () {",
+									"    pm.expect(theMeeting.end).to.equal(pm.collectionVariables.get(\"_end_time\"));",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Sample Title\",\n    \"agenda\": \"Sample Agenda\",\n    \"password\": \"A@ssword123\",\n    \"start\": \"{{_start_time}}\",\n    \"end\": \"{{_end_time}}\",\n    \"timezone\": \"{{TIMEZONE_STRING}}\", \n    \"enabledAutoRecordMeeting\": false,\n    \"allowAnyUserToBeCoHost\": false\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							]
+						},
+						"description": "Our prerequest script will examine the UTCOFFSET and TIMEZONE variables and generate a to/from team for a meeting that starts at noon tommorow and lasts for 30 minutes\nOur request body will use the temporary _start_time and _end_time variables that our prerequest script _start_time\nOur tests will validate that we got the expected result and set some additional temporary environment variables that will be used in subseqent tests"
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "3775bed6-06bb-42d9-9796-f2373fae50d7",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeeting = pm.response.json();",
+									"pm.test(\"Meeting ID matches\", function () {",
+									"    pm.expect(theMeeting.id).to.equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"Meeting Number matches\", function () {",
+									"    pm.expect(theMeeting.meetingNumber).to.equal(pm.collectionVariables.get(\"_singleMeetingNumber\"));",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(theMeeting.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(theMeeting.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Recurrance is single\", function () {",
+									"    pm.expect(theMeeting.meetingType).to.equal(\"meetingSeries\");",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "{{Authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_singleMeetingId}}"
+							]
+						},
+						"description": "You can pass an ID directly to the /meetings API to get that object.  In this case we will get the non-recurring meetingType:meetingSeries object that we just created."
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting using meetingSeriesId query param",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "7c32255f-2dfb-4780-87eb-517d42b968cf",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"Result contains a list\", function () {",
+									"    pm.expect(jsonData).to.have.keys('items');",
+									"})",
+									"",
+									"pm.test(\"List contains one element\", function () {",
+									"    pm.expect(jsonData.items.length).to.equal(1);",
+									"});",
+									"",
+									"var theMeeting = jsonData.items[0];",
+									"",
+									"pm.test(\"scheduledMeeting has meetingSeriesId\", function () {",
+									"    pm.expect(theMeeting.meetingSeriesId).to.equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"",
+									"pm.test(\"Meeting ID matches meetingSeriesId\", function () {",
+									"    pm.expect(theMeeting.id).to.equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"Meeting Number matches\", function () {",
+									"    pm.expect(theMeeting.meetingNumber).to.equal(pm.collectionVariables.get(\"_singleMeetingNumber\"));",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(theMeeting.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(theMeeting.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Meeting type is scheduledMeeting\", function () {",
+									"    pm.expect(theMeeting.meetingType).to.equal(\"scheduledMeeting\");",
+									"});",
+									"",
+									"var utcoffset = pm.collectionVariables.get(\"UTCOFFSET\");",
+									"pm.test(\"Start time is as expected in UTC Time\", function () {",
+									"    let _start_time = pm.collectionVariables.get('_start_time');",
+									"    let start_time = moment.utc(_start_time);",
+									"    pm.expect(theMeeting.start).to.equal(start_time.format());",
+									"});",
+									"",
+									"pm.test(\"End Time time is as expected in UTC Time\", function () {",
+									"    let _end_time = pm.collectionVariables.get('_end_time');",
+									"    let end_time = moment.utc(_end_time);",
+									"    pm.expect(theMeeting.end).to.equal(end_time.format());",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "8bcbd264-3d71-44b2-b082-4c347ace69df",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "{{Authorization}}"
+							}
+						],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingSeriesId={{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingSeriesId",
+									"value": "{{_singleMeetingId}}"
+								}
+							]
+						},
+						"description": "If we pass the id as a meetingSeriesId query param, we get a list of scheduledMeeting meetingTypes that are associated with this series.  In this case since the meeting was non-recurring there is only one result.  This scheduledMeeting DTO is exactly the same as it's non-recurring meetingSeries parent, except that the meetingType is different (scheduledMeeting vs meetingSeries), and it provides an explicit meetingSeriesId.  Note that this matches the id, since in the caase of a non-recurring meeting the meetingSeries object and the scheduleMeeting object are the same thing."
+					},
+					"response": []
+				},
+				{
+					"name": "Update the meeting",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "d39d90fc-9f89-434f-adcb-4bd6f83e07f8",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// Get the response body from the previous GET",
+									"let theMeeting = JSON.parse(pm.collectionVariables.get(\"_theMeeting\"));",
+									"",
+									"// Change a couple of attributes",
+									"theMeeting.enabledAutoRecordMeeting = (theMeeting.enabledAutoRecordMeeting) ? false : true;",
+									"",
+									"// Save the new expected values for our test",
+									"pm.collectionVariables.set(\"_expectedAutoRecordMeeting\", theMeeting.enabledAutoRecordMeeting);",
+									"",
+									"// Write the updated body for the PUT back to the environment",
+									"pm.collectionVariables.set(\"_theMeeting\", JSON.stringify(theMeeting));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "30910cea-7580-4ee9-8cfc-ee95217ab6d0",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"Meeting ID matches\", function () {",
+									"    pm.expect(jsonData.id).to.equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"enabledAutoRecordMeeting is now true\", function () {",
+									"    pm.expect(jsonData.enabledAutoRecordMeeting).to.equal(pm.collectionVariables.get(\"_expectedAutoRecordMeeting\"));",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{{_theMeeting}}\n"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_singleMeetingId}}"
+							]
+						},
+						"description": "In our pre-request script we grab the saved version of this meeting that we saved when we created it. We toggle the boolean value `enabledAutoRecordMeeting`.  We then write the new meeting object to an environment and use that as the body of our PUT request.   Our test validates that the result has the new value."
+					},
+					"response": []
+				},
+				{
+					"name": "Create series meeting",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "2e368211-e609-4e05-8f0f-78280bd85722",
+								"exec": [
+									"var moment = require('moment');",
+									"var utcoffset = pm.collectionVariables.get(\"UTCOFFSET\");",
+									"// Start tommorow at one pm",
+									"let start_time = moment().startOf(\"day\");",
+									"start_time = start_time.add(1, \"day\");",
+									"start_time = start_time.add(13, \"hours\");",
+									"let _start_time = start_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_start_time\", _start_time);",
+									"console.log(pm.collectionVariables.get(\"_start_time\"));",
+									"",
+									"// End at 13:30",
+									"let end_time = start_time;",
+									"end_time = end_time.add(30, 'minutes');",
+									"let _end_time = end_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_end_time\", _end_time);",
+									"console.log(pm.collectionVariables.get(\"_end_time\"));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "f8583622-6090-4462-9c44-77d406187818",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"_theMeetingSeries\", JSON.stringify(jsonData));",
+									"",
+									"pm.test(\"Response is valid and has an id\", function () {",
+									"    pm.expect(jsonData.id).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_recurringMeetingId\", jsonData.id);",
+									"});",
+									"",
+									"pm.test(\"Response is valid and has an meeting number\", function () {",
+									"    pm.expect(jsonData.meetingNumber).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_recurringMeetingNumber\", jsonData.meetingNumber);",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(jsonData.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(jsonData.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"meetingType is meetingSeries\", function () {",
+									"    pm.expect(jsonData.meetingType).to.equal(\"meetingSeries\");",
+									"});",
+									"",
+									"pm.test(\"Start time is as expected\", function () {",
+									"    pm.expect(jsonData.start).to.equal(pm.collectionVariables.get(\"_start_time\"));",
+									"});",
+									"",
+									"pm.test(\"End Time time is as expected\", function () {",
+									"    pm.expect(jsonData.end).to.equal(pm.collectionVariables.get(\"_end_time\"));",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"title\": \"Series Title\",\r\n    \"agenda\": \"Series Agenda\",\r\n    \"password\": \"A@ssword123\",\r\n    \"start\": \"{{_start_time}}\",\r\n    \"end\": \"{{_end_time}}\",\r\n    \"timezone\": \"{{TIMEZONE_STRING}}\",\r\n    \"recurrence\": \"FREQ=DAILY;INTERVAL=1;COUNT=10\",\r\n    \"enabledAutoRecordMeeting\": false,\r\n    \"allowAnyUserToBeCoHost\": false\r\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							]
+						},
+						"description": "This request is like the first POST request except that we add the reccurence field in our request body"
+					},
+					"response": []
+				},
+				{
+					"name": "Get recurring meeting by number",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "f94932d9-7d68-4e13-b338-9be23a23160f",
+								"exec": [
+									"var moment = require('moment');",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"var theMeeting = pm.response.json().items[0];",
+									"// console.log(theMeeting);",
+									"",
+									"pm.test(\"Meeting ID matches\", function () {",
+									"    pm.expect(theMeeting.id).to.not.equal(pm.collectionVariables.get(\"_recurringMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"meetingSeriesId matches\", function () {",
+									"    pm.expect(theMeeting.meetingSeriesId).to.equal(pm.collectionVariables.get(\"_recurringMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"Meeting Number matches\", function () {",
+									"    pm.expect(theMeeting.meetingNumber).to.equal(pm.collectionVariables.get(\"_recurringMeetingNumber\"));",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(theMeeting.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(theMeeting.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"meetingType is meetingSeries\", function () {",
+									"    pm.expect(theMeeting.meetingType).to.equal(\"scheduledMeeting\");",
+									"});",
+									"",
+									"pm.test(\"Start time is as expected in UTC Time\", function () {",
+									"    let start_time = moment.utc(pm.collectionVariables.get(\"_start_time\"));",
+									"    pm.expect(theMeeting.start).to.equal(start_time.format());",
+									"});",
+									"",
+									"pm.test(\"End Time time is as expected in UTC Time\", function () {",
+									"    let end_time = moment.utc(pm.collectionVariables.get(\"_end_time\"));",
+									"    pm.expect(theMeeting.end).to.equal(end_time.format());",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingNumber={{_recurringMeetingNumber}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingNumber",
+									"value": "{{_recurringMeetingNumber}}"
+								}
+							]
+						},
+						"description": "In addition to including the ID of a meeting in the GET /meetings url, you can specify query parameters to get a meeting.  In this example, we specify the meetingNumber.  The result is always a list of items although in this case we get back just one element in the list, the meetingSeries that we just created with that meeting number."
+					},
+					"response": []
+				},
+				{
+					"name": "Get recurring meeting by meetingSeriesId",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "35c34b92-d81b-4058-b35e-cf384516b7e6",
+								"exec": [
+									"var moment = require('moment');",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"// Let's examine the first item in the list",
+									"var theMeeting = pm.response.json().items[0];",
+									"pm.collectionVariables.set(\"_aScheduledMeeting\", JSON.stringify(theMeeting));",
+									"pm.collectionVariables.set(\"_aScheduledMeetingId\", theMeeting.id);",
+									"",
+									"pm.test(\"meetingType is scheduledMeeting\", function () {",
+									"    pm.expect(theMeeting.meetingType).to.equal(\"scheduledMeeting\");",
+									"});",
+									"",
+									"pm.test(\"scheduledMeeting type ID does not match parents'\", function () {",
+									"    pm.expect(theMeeting.id).to.not.equal(pm.collectionVariables.get(\"_recurringMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"meetingSeriesId does match\", function () {",
+									"    pm.expect(theMeeting.meetingSeriesId).to.equal(pm.collectionVariables.get(\"_recurringMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"Meeting Number matches\", function () {",
+									"    pm.expect(theMeeting.meetingNumber).to.equal(pm.collectionVariables.get(\"_recurringMeetingNumber\"));",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(theMeeting.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(theMeeting.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Start time is as expected in UTC Time\", function () {",
+									"    let start_time = moment.utc(pm.collectionVariables.get(\"_start_time\"));",
+									"    pm.expect(theMeeting.start).to.equal(start_time.format());",
+									"});",
+									"",
+									"pm.test(\"End Time time is as expected in UTC Time\", function () {",
+									"    let end_time = moment.utc(pm.collectionVariables.get(\"_end_time\"));",
+									"    pm.expect(theMeeting.end).to.equal(end_time.format());",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/?meetingSeriesId={{_recurringMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								""
+							],
+							"query": [
+								{
+									"key": "meetingSeriesId",
+									"value": "{{_recurringMeetingId}}"
+								}
+							]
+						},
+						"description": "We can perform the same request by specfing the meetingSeriesId as the query parameter instead of the meetingNumber.  In this case the response will be a list of scheduledMeeting meetingType objects associated with the series.   In this case each scheduledMeeting object has a unique id, but they all share a common meetingSeriesId."
+					},
+					"response": []
+				},
+				{
+					"name": "List a week's worth of recurring meeting instances",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "7f616c33-2dd2-47de-a8a0-9d00cc2d9ff2",
+								"exec": [
+									"var moment = require('moment');",
+									"var utcoffset = pm.collectionVariables.get(\"UTCOFFSET\");",
+									"// Get a weeks worth of meetings starting at the start time",
+									"let start_time = pm.collectionVariables.get(\"_start_time\");",
+									"start_time = moment(start_time);",
+									"let to_time = moment().startOf(start_time);",
+									"to_time = to_time.add(7, \"days\");",
+									"let _to_time = to_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_to_time\", _to_time);",
+									"let from = encodeURIComponent(pm.collectionVariables.get(\"_start_time\"));",
+									"let to = encodeURIComponent(_to_time);",
+									"pm.collectionVariables.set(\"_from_time\", from);",
+									"pm.collectionVariables.set(\"_to_time\", to);",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "09d29586-970b-49a0-8d67-f3276280c056",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"List length does not exceed expected length of 7\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.below(8);",
+									"});",
+									"",
+									"",
+									"var jsonData = pm.response.json();",
+									"if (Array.isArray(jsonData.items)) {",
+									"    let from = pm.collectionVariables.get(\"_start_time\");",
+									"    let date = moment.utc(from);",
+									"    from = date.format(\"YYYY-MM-DDTHH:mm:ss\") + \"Z\";",
+									"    let to = pm.collectionVariables.get(\"_to_time\");",
+									"    date = moment.utc(to);",
+									"    to = date.format(\"YYYY-MM-DDTHH:mm:ss\") + \"Z\";",
+									"    let date_in_range = true;",
+									"    for (let meeting of jsonData.items) {",
+									"        if ((meeting.end <= from) || (meeting.start >= to)) {",
+									"            tests[`Got meeting calendar view: Got meeting with start date:${meeting.start},end date:${meeting.end}, outside of range{from:${from}, to:${to}}`] = false;",
+									"            date_in_range = false;",
+									"        }",
+									"    }",
+									"    if (date_in_range) {",
+									"        tests[`Got meeting calendar view: All meeting start times in range{from:${from}, to:${to}}`] = true;",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{CITOKEN}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingSeriesId={{_recurringMeetingId}}&from={{_from_time}}&to={{_to_time}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "",
+									"value": "\n",
+									"disabled": true
+								},
+								{
+									"key": "meetingSeriesId",
+									"value": "{{_recurringMeetingId}}"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								}
+							]
+						},
+						"description": "When querying for a list of scheduled meetings you can use the `to` and `from` query params.  In this case we set it for a week which is the same as the default."
+					},
+					"response": []
+				},
+				{
+					"name": "Test max param on meeting instances",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "1ad24f78-57d3-4dda-a232-44004f318926",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "1f8ca188-f79e-4b44-9740-2ea83a89db85",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"List length does not exceed max specified\", function () {",
+									"    let max_results =parseInt(pm.collectionVariables.get(\"MAX_RESULTS\"));",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.below(max_results+1);",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "Bearer {{CITOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingSeriesId={{_recurringMeetingId}}&from={{_from_time}}&to={{_to_time}}&max={{MAX_RESULTS}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingSeriesId",
+									"value": "{{_recurringMeetingId}}"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								},
+								{
+									"key": "max",
+									"value": "{{MAX_RESULTS}}"
+								}
+							]
+						},
+						"description": "You can also limit the number of results returned by setting the `max` query param.   Here we make the same call as before but limit it to our MAX_RESULTS environment variable."
+					},
+					"response": []
+				},
+				{
+					"name": "Update a scheduled MeetingInstance",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "a632f35b-5029-49d6-af23-12eb677369f4",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// Get the response body from the previous GET",
+									"let theMeeting = JSON.parse(pm.collectionVariables.get(\"_aScheduledMeeting\"));",
+									"",
+									"// Change a couple of attributes",
+									"theMeeting.enabledAutoRecordMeeting = (theMeeting.enabledAutoRecordMeeting) ? false : true;",
+									"",
+									"// Save the new expected values for our test",
+									"pm.collectionVariables.set(\"_expectedAutoRecordMeeting\", theMeeting.enabledAutoRecordMeeting);",
+									"",
+									"// Write the updated body for the PUT back to the environment",
+									"pm.collectionVariables.set(\"_aScheduledMeeting\", JSON.stringify(theMeeting));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "50126c01-dd31-4675-bf16-76a47639f6f2",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"Meeting ID matches\", function () {",
+									"    pm.expect(jsonData.id).to.equal(pm.collectionVariables.get(\"_aScheduledMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"isModified attribute is now true\", function () {",
+									"    pm.expect(jsonData.isModified).to.equal(true);",
+									"});",
+									"",
+									"",
+									"pm.test(\"enabledAutoRecordMeeting is now true\", function () {",
+									"    pm.expect(jsonData.enabledAutoRecordMeeting).to.equal(pm.collectionVariables.get(\"_expectedAutoRecordMeeting\"));",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{{_aScheduledMeeting}}\n"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_aScheduledMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_aScheduledMeetingId}}"
+							]
+						},
+						"description": "This time we will modify just a single scheduledMeeting instance.  Our prequest script will read in a copy of that meeting that we saved when we first listed the scheduledMeeting instances, and our test will validate that the value has changed as expected.  Note that when a scheduleMeeting is updated the `isModified` attribute is set to true."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate just one scheduledMeeting was updated",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "546a0dcd-551f-4ee6-b5b7-cb4e222e67ed",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "6ab9bbd8-9818-4d74-a52c-4b4c789ce0d5",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"List length is two\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.equal(2);",
+									"});",
+									"",
+									"pm.test(\"Meetings have different enabledAutoRecordMeeting settings\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var theList = jsonData.items;",
+									"    pm.expect(theList[0].enabledAutoRecordMeeting).to.not.equal(theList[1].enabledAutoRecordMeeting)",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "Bearer {{CITOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingSeriesId={{_recurringMeetingId}}&max=2",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingSeriesId",
+									"value": "{{_recurringMeetingId}}"
+								},
+								{
+									"key": "max",
+									"value": "2"
+								}
+							]
+						},
+						"description": "Let's get the next two scheduledMeeting instances and validate that they have different values for the enabledAutoRecordMeeting setting."
+					},
+					"response": []
+				},
+				{
+					"name": "Update the meeting series",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "62494f45-8c33-4540-b0bc-b92eff5de3de",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// Get the response body from the previous GET",
+									"let theMeeting = JSON.parse(pm.collectionVariables.get(\"_theMeetingSeries\"));",
+									"",
+									"// Change a couple of attributes",
+									"theMeeting.enabledAutoRecordMeeting = (theMeeting.enabledAutoRecordMeeting) ? false : true;",
+									"",
+									"// Save the new expected values for our test",
+									"pm.collectionVariables.set(\"_expectedAutoRecordMeeting\", theMeeting.enabledAutoRecordMeeting);",
+									"",
+									"// Write the updated body for the PUT back to the environment",
+									"pm.collectionVariables.set(\"_theMeetingSeries\", JSON.stringify(theMeeting));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "1af5449f-b2f8-4e9a-96b7-4008977f35e9",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"Meeting ID matches\", function () {",
+									"    pm.expect(jsonData.id).to.equal(pm.collectionVariables.get(\"_recurringMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"Meeting Number matches\", function () {",
+									"    pm.expect(jsonData.meetingNumber).to.equal(pm.collectionVariables.get(\"_recurringMeetingNumber\"));",
+									"});",
+									"",
+									"pm.test(\"enabledAutoRecordMeeting is now \" + pm.collectionVariables.get(\"_expectedAutoRecordMeeting\"), function () {",
+									"    pm.expect(jsonData.enabledAutoRecordMeeting).to.equal(pm.collectionVariables.get(\"_expectedAutoRecordMeeting\"));",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{{_theMeetingSeries}}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_recurringMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_recurringMeetingId}}"
+							]
+						},
+						"description": "This time we will modify just a single scheduledMeeting instance.  Our prequest script will read in a copy of that meeting that we saved when we first listed the scheduledMeeting instances, and our test will validate that the value has changed as expected.  The `isModified` attribute will be false in all scheduledMeeting instances, except the one that we previously changed."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate all scheduledMeetings are updated",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "f419414d-6773-4a89-aa83-fce1d69827cc",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "2eb98d3a-2859-412e-9c8b-051b694694f6",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"List length is two\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.equal(2);",
+									"});",
+									"",
+									"pm.test(\"Meetings have the same enabledAutoRecordMeeting settings\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var theList = jsonData.items;",
+									"    pm.expect(theList[0].enabledAutoRecordMeeting).to.equal(theList[1].enabledAutoRecordMeeting)",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "Bearer {{CITOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingSeriesId={{_recurringMeetingId}}&from={{_from_time}}&to={{_to_time}}&max={{MAX_RESULTS}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingSeriesId",
+									"value": "{{_recurringMeetingId}}"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								},
+								{
+									"key": "max",
+									"value": "{{MAX_RESULTS}}"
+								}
+							]
+						},
+						"description": "Let's get the next two scheduledMeeting instances and validate that they now all have the same value for the enabledAutoRecordMeeting setting."
+					},
+					"response": []
+				},
+				{
+					"name": "Create a 3rd non recurring meeting for tommorow",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "344ac9f1-3bb0-4ebf-82a7-b37272f4c044",
+								"exec": [
+									"var moment = require('moment');",
+									"var utcoffset = pm.collectionVariables.get(\"UTCOFFSET\");",
+									"// Start tommorow at two PM",
+									"let start_time = moment().startOf(\"day\");",
+									"start_time = start_time.add(1, \"day\");",
+									"start_time = start_time.add(14, \"hours\");",
+									"let _start_time = start_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_start_time\", _start_time);",
+									"",
+									"// End at 2:30",
+									"let end_time = start_time;",
+									"end_time = end_time.add(30, 'minutes');",
+									"let _end_time = end_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_end_time\", _end_time);",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "b4c0ed44-273f-45d3-88b2-b2e283d796b7",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"Response is valid and has an id\", function () {",
+									"    console.log(jsonData.id);",
+									"    pm.expect(jsonData.id).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_secondSingleMeetingId\", jsonData.id);",
+									"});",
+									"",
+									"pm.test(\"Response has a meeting number\", function () {",
+									"    pm.expect(jsonData.meetingNumber).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_secondSingleMeetingNumber\", jsonData.meetingNumber);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Sample Title\",\n    \"agenda\": \"Sample Agenda\",\n    \"password\": \"A@ssword123\",\n    \"start\": \"{{_start_time}}\",\n    \"end\": \"{{_end_time}}\",\n    \"timezone\": \"{{TIMEZONE_STRING}}\", \n    \"enabledAutoRecordMeeting\": false,\n    \"allowAnyUserToBeCoHost\": false\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get meetingSeries for next week (default)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "aa0ced9a-21a0-4881-96dc-c75e179d02a4",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"List length is at least 3\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.above(2);",
+									"});",
+									"",
+									"// Save the response in order to compare it with the next call",
+									"pm.collectionVariables.set(\"_thisWeeksMeetingSeries\", JSON.stringify(pm.response.json()));",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "632e91a6-0764-4bf8-b506-1e262c31d64f",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							]
+						},
+						"description": "A GET to /meetings API with no query params returns a list of meetingSeries that have one or more associated scheduleMeetings that will happen in the next seven days.  We expect at least 3 results."
+					},
+					"response": []
+				},
+				{
+					"name": "Get meetingSeries for next week (explicit params)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "40b84766-8234-41a5-b724-74373098d77a",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"List length is at least 3\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.above(2);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "85fcc4cb-0a93-40cb-9cc2-5a0b7c829fc1",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=meetingSeries&from={{_from_time}}&to={{_to_time}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "meetingSeries"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								}
+							]
+						},
+						"description": "Here we also get all the meetingSeries for the next week but this time we explicitly ask for `meetingType` of meetingSeries and set the `to` and `from` parameters for the next seven days.  We test that we got the same results as the previous call"
+					},
+					"response": []
+				},
+				{
+					"name": "Get scheduledMeetings for next week",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "b5ad33c3-8309-486f-8489-6b228877541f",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"// There should be more scheduledMeetings than meetingSeries if any of our meetingSeries are daily recurring",
+									"pm.test(\"There are more scheduledMeetings than meetingSeries\", function () {",
+									"    var scheduledMeetingsList = pm.response.json();",
+									"    var meetingSeriesList = JSON.parse(pm.collectionVariables.get(\"_thisWeeksMeetingSeries\"));",
+									"    pm.expect(scheduledMeetingsList.items.length).to.be.above(meetingSeriesList.items.length);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "1ae5d21d-d7e6-4846-ae2e-5f3101fdf5f9",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=scheduledMeeting&from={{_from_time}}&to={{_to_time}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "scheduledMeeting"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								}
+							]
+						},
+						"description": "Now we change the `meetingType` to scheduledMeetings to get the scheduledMeetings instead of the meetingSeries type."
+					},
+					"response": []
+				},
+				{
+					"name": "Get scheduledMeetings from last week",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "3fb95c10-d5f4-4c9c-beee-0bf7828238e2",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"// There should be more scheduledMeetings than meetingSeries if any of our meetingSeries are daily recurring",
+									"pm.test(\"There are more scheduledMeetings than meetingSeries\", function () {",
+									"    var scheduledMeetingsList = pm.response.json();",
+									"    var meetingSeriesList = JSON.parse(pm.collectionVariables.get(\"_thisWeeksMeetingSeries\"));",
+									"    if (meetingSeriesList.items.length >= 10) {",
+									"        // List APIs return a max of 10 so we will skip this test",
+									"        return ",
+									"    }",
+									"    pm.expect(scheduledMeetingsList.items.length).to.be.above(meetingSeriesList.items.length);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "46a04757-6965-4caf-8b47-278932895e99",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=scheduledMeeting&from={{_from_time}}&to={{_to_time}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "scheduledMeeting"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								}
+							]
+						},
+						"description": "By changing the `to` and `from` parameters we can look backwards and see previously scheduledMeetings.  At the time of creating this collect they are all in the `state` of scheduled but soon they should be in either the `inProgress`, `ended` or `missed` states."
+					},
+					"response": []
+				},
+				{
+					"name": "Get scheduledMeetings that were missed - not yet available",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "01b8784f-5348-4c6d-9e90-ea394ac9209d",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "e552759d-5eb0-44c9-9361-de3b5dbc0b16",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// start from today",
+									"let from_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End after 7 days",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=scheduledMeeting&from={{_from_time}}&to={{_to_time}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "scheduledMeeting"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								}
+							]
+						},
+						"description": "In the future we can add a `state` query param to \"missed\" and look backwards to see if we can find any scheduleMeetings that were missed"
+					},
+					"response": []
+				},
+				{
+					"name": "Get meetings that were joined last week -- not yet available",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "9abf2735-dc04-4b4a-a470-6d343da1d7df",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"// This will be empty until the in-meetings APIs",
+									"// become available and this data object is populated",
+									"pm.test(\"List length is 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.equal(0);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "03e0f757-fe8e-411b-8d16-8a8d730066bf",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// Start seven days ago",
+									"let from_time = moment().startOf(\"day\");",
+									"from_time = from_time.subtract(7, \"day\");",
+									"pm.collectionVariables.set(\"_from_time\", from_time);",
+									"",
+									"// End today",
+									"let to_time = moment().startOf(\"day\");",
+									"to_time = to_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_to_time\", to_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=meeting&from={{_from_time}}&to={{_to_time}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "meeting"
+								},
+								{
+									"key": "from",
+									"value": "{{_from_time}}"
+								},
+								{
+									"key": "to",
+									"value": "{{_to_time}}"
+								}
+							]
+						},
+						"description": "In the near future you can set the `meetingType` to \"meeting\" to get meetings that have occured or are occuring."
+					},
+					"response": []
+				},
+				{
+					"name": "Get meetings that are happening now - not yet available",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5fa415e7-99ea-47ef-8d5d-40849b026d1b",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"// This will be empty until the in-meetings APIs",
+									"// become available and this data object is populated",
+									"pm.test(\"List length is 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.equal(0);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "9eae85ce-120a-46af-8c98-b1e60a1162e5",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// Start today",
+									"let start_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", start_time);",
+									"",
+									"// End after 7 days",
+									"let end_time = moment().startOf(\"day\");",
+									"end_time = end_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_end_time\", start_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=meetingSeries&state=inProgress",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "meetingSeries"
+								},
+								{
+									"key": "state",
+									"value": "inProgress"
+								}
+							]
+						},
+						"description": "Also in the near future you will be able to set the `state` to \"inProgress\" to get meetings that are occuring now.  (You can query for either a meetingSeries or a meeting `meetingType`, but you must specify the one you are looking for)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get meetings that are happening now - not yet available Copy",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "08308dd2-3a48-42f6-8e27-c1de1ae67f5e",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"// This will be empty until the in-meetings APIs",
+									"// become available and this data object is populated",
+									"pm.test(\"List length is 0\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.equal(0);",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "7265a086-b47d-473c-8ea8-34811d6804ad",
+								"exec": [
+									"var moment = require('moment');",
+									"",
+									"// Start today",
+									"let start_time = moment().startOf(\"day\");",
+									"pm.collectionVariables.set(\"_from_time\", start_time);",
+									"",
+									"// End after 7 days",
+									"let end_time = moment().startOf(\"day\");",
+									"end_time = end_time.add(7, \"day\");",
+									"pm.collectionVariables.set(\"_end_time\", start_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings?meetingType=meetingSeries&state=inProgress",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							],
+							"query": [
+								{
+									"key": "meetingType",
+									"value": "meetingSeries"
+								},
+								{
+									"key": "state",
+									"value": "inProgress"
+								}
+							]
+						},
+						"description": "Also in the near future you will be able to set the `state` to \"inProgress\" to get meetings that are occuring now.  (You can query for either a meetingSeries or a meeting `meetingType`, but you must specify the one you are looking for)."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete the non recurring meeting",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "15e68c8d-4e9b-45fb-9ba0-577eb4e109e2",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_singleMeetingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete the recurring meeting",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "be27d11c-6342-4d0e-a00b-f65a509747eb",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_recurringMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_recurringMeetingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete the second single meeting",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5b16b058-0537-47d8-bc70-3a35d439c463",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_secondSingleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_secondSingleMeetingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Attempt to delete a deleted meeting - should be 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "a1e2b721-b400-41a0-88b0-bceee967b865",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response contains a message field\", function () {",
+									"    pm.expect(pm.response.json().message).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response contains an errors array\", function () {",
+									"    pm.expect(pm.response.json().errors).to.be.an(\"array\");",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"type": "text",
+								"value": "Bearer {{CITOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_singleMeetingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Attempt to GET a deleted meeting - should be 404",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "799a074e-1044-4b89-914b-95e86863e8a0",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response contains a message field\", function () {",
+									"    pm.expect(pm.response.json().message).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response contains an errors array\", function () {",
+									"    pm.expect(pm.response.json().errors).to.be.an(\"array\");",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_singleMeetingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cleanup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "de446e67-ed47-4c83-8520-7ac281ab8776",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "2fbb47c1-c994-4712-88d9-de64023be322",
+								"exec": [
+									"function cleanup() {",
+									"    const clean = _.keys(pm.collectionVariables.toObject());",
+									"    _.each(clean, (arrItem) => {",
+									"        //console.log(`Evalauating environment varable:${arrItem}`);",
+									"        if (arrItem.startsWith(\"_\")) {",
+									"            //console.log(`Will remove temporary env var:${arrItem}`);",
+									"            pm.collectionVariables.unset(arrItem);",
+									"        }",
+									"    });",
+									"}",
+									"",
+									"// Run the cleanup script which deletes all env vars that start with \"_\"",
+									"cleanup();"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://postman-echo.com/",
+							"protocol": "https",
+							"host": [
+								"postman-echo",
+								"com"
+							],
+							"path": [
+								""
+							]
+						},
+						"description": "This request will run a pre-request script that will delete all the temporary environment variables that have been set."
+					},
+					"response": []
+				}
+			],
+			"protocolProfileBehavior": {}
+		},
+		{
+			"name": "Meeting Invitees",
+			"item": [
+				{
+					"name": "Get potential invitee details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "d3001bee-0fd6-4af2-97de-b3fc0d250aef",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"There is a single Webex user with this email\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).equal(1);",
+									"});",
+									"",
+									"pm.test(\"We are able to get the users display name\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items[0].displayName).to.be.a('string');",
+									"    pm.collectionVariables.set(\"_otherUsersDisplayName\", jsonData.items[0].displayName)",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/people?email={{OTHER_USERS_EMAIL}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"people"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{OTHER_USERS_EMAIL}}"
+								}
+							]
+						},
+						"description": "Here we query info about the Webex user you configured in the OTHER_USERS_EMAIL collection variable.   We will use this to get their display name which we can set when inviting them to the meeting."
+					},
+					"response": []
+				},
+				{
+					"name": "Get my details",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "645efc8e-ac7c-4680-8084-ad0047e37b5c",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"We are able to get our own email\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.emails[0]).to.be.a('string');",
+									"    pm.collectionVariables.set(\"_myEmail\", jsonData.emails[0])",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/people/me",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"people",
+								"me"
+							]
+						},
+						"description": "We call this in order to get our own email used in subsequent requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Create a non recurring meeting for tommorow",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "ead391b2-1473-4d8a-8f61-37f32f6c5022",
+								"exec": [
+									"var moment = require('moment');",
+									"var utcoffset = pm.collectionVariables.get(\"UTCOFFSET\"); ",
+									"// Start tommorow at noon",
+									"let start_time = moment().startOf(\"day\");",
+									"start_time = start_time.add(1, \"day\");",
+									"start_time = start_time.add(12, \"hours\");",
+									"let _start_time = start_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_start_time\", _start_time);",
+									"",
+									"// End at 12:30",
+									"let end_time = start_time;",
+									"end_time = end_time.add(30, 'minutes');",
+									"let _end_time = end_time.utcOffset(utcoffset).format('YYYY-MM-DDTHH:mm:ssZ');",
+									"pm.collectionVariables.set(\"_end_time\", _end_time);",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "d670944d-c24a-45ee-bee0-26e064fcd2fd",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"Response is valid and has an id\", function () {",
+									"    console.log(jsonData.id);",
+									"    pm.expect(jsonData.id).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_singleMeetingId\", jsonData.id);",
+									"});",
+									"",
+									"pm.test(\"Response has a meeting number\", function () {",
+									"    pm.expect(jsonData.meetingNumber).to.be.a(\"string\");",
+									"    pm.collectionVariables.set(\"_singleMeetingNumber\", jsonData.meetingNumber);",
+									"});",
+									"",
+									"pm.test(\"Response has webLink\", function () {",
+									"    pm.expect(jsonData.webLink).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response has sipAddress\", function () {",
+									"    pm.expect(jsonData.sipAddress).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Recurrance is single\", function () {",
+									"    pm.expect(jsonData.meetingType).to.equal(\"meetingSeries\");",
+									"});",
+									"",
+									"pm.test(\"Start time is as expected\", function () {",
+									"    pm.expect(jsonData.start).to.equal(pm.collectionVariables.get(\"_start_time\"));",
+									"});",
+									"",
+									"pm.test(\"End Time time is as expected\", function () {",
+									"    pm.expect(jsonData.end).to.equal(pm.collectionVariables.get(\"_end_time\"));",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Sample Title\",\n    \"agenda\": \"Sample Agenda\",\n    \"password\": \"A@ssword123\",\n    \"start\": \"{{_start_time}}\",\n    \"end\": \"{{_end_time}}\",\n    \"timezone\": \"{{TIMEZONE_STRING}}\", \n    \"enabledAutoRecordMeeting\": false,\n    \"allowAnyUserToBeCoHost\": false\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings"
+							]
+						},
+						"description": "We'll use this meeting to manage Invitees"
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting invitees",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "b07e2aad-1f6c-4b33-8e0c-26ec6e60ce4d",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"There are no invitees\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).equal(0);",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees?meetingId={{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							],
+							"query": [
+								{
+									"key": "meetingId",
+									"value": "{{_singleMeetingId}}"
+								}
+							]
+						},
+						"description": "We did not set any invitees when we first created the meeting, so we expect this API to return an empty list."
+					},
+					"response": []
+				},
+				{
+					"name": "Add a meeting invitee by email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "dc9c5e4d-05ec-475d-be30-c8f488bda39b",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingInvitee = pm.response.json();",
+									"pm.collectionVariables.set(\"_meetingInvitee\", theMeetingInvitee.id);",
+									"",
+									"pm.test(\"Email of invitee matches\", function () {",
+									"    pm.expect(theMeetingInvitee.email).equal(pm.collectionVariables.get(\"OTHER_USERS_EMAIL\"));",
+									"});",
+									"",
+									"pm.test(\"meeting id matches\", function () {",
+									"    pm.expect(theMeetingInvitee.meetingId).equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"invitee is not a  coHost\", function () {",
+									"    pm.expect(theMeetingInvitee.coHost).equal(false);",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "9c8ad26c-ebc2-4c82-bda4-ae0ede356957",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"meetingId\": \"{{_singleMeetingId}}\",\n\t\"email\": \"{{OTHER_USERS_EMAIL}}\",\n\t\"displayName\": \"{{_otherUsersDisplayName}}\",\n\t\"coHost\": false\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							]
+						},
+						"description": "Now lets add the user you configured in the OTHER_USERS_EMAIL collection variable."
+					},
+					"response": []
+				},
+				{
+					"name": "Add a duplicate invitee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "11404ca7-beb6-49cc-9c09-3fd4c2b0d310",
+								"exec": [
+									"pm.test(\"Status code is 409\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Response contains a message field\", function () {",
+									"    pm.expect(pm.response.json().message).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response contains an errors array\", function () {",
+									"    pm.expect(pm.response.json().errors).to.be.an(\"array\");",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "7cc971a8-8f75-4c7c-9af8-09ef354ba1bd",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"meetingId\": \"{{_singleMeetingId}}\",\n\t\"email\": \"{{OTHER_USERS_EMAIL}}\",\n\t\"displayName\": \"{{OTHER_USERS_DISPLAYNAME}}\",\n\t\"alternateHost\": false\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees?meetingId={{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							],
+							"query": [
+								{
+									"key": "meetingId",
+									"value": "{{_singleMeetingId}}"
+								}
+							]
+						},
+						"description": "If we try to add somone who is already invited (based on the email), we will get a 409 conflict error."
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting invitee Info",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5b05e957-4e50-4c17-b887-68dea186b9ca",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingInvitee = pm.response.json();",
+									"pm.collectionVariables.set(\"_meetingInviteeBody\", JSON.stringify(theMeetingInvitee));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees/{{_meetingInvitee}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees",
+								"{{_meetingInvitee}}"
+							]
+						},
+						"description": "There should now be one user in the invitee list"
+					},
+					"response": []
+				},
+				{
+					"name": "Invite myself via email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ea659ce8-3fd6-4651-bef1-a90539e03336",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingInvitee = pm.response.json();",
+									"pm.collectionVariables.set(\"_secondMeetingInvitee\", theMeetingInvitee.id);",
+									"",
+									"pm.test(\"Email of invitee matches\", function () {",
+									"    pm.expect(theMeetingInvitee.email).equal(pm.collectionVariables.get(\"_myEmail\"));",
+									"});",
+									"",
+									"pm.test(\"meeting id matches\", function () {",
+									"    pm.expect(theMeetingInvitee.meetingId).equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"invitee is not a  coHost\", function () {",
+									"    pm.expect(theMeetingInvitee.coHost).equal(false);",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"type": "text",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"meetingId\": \"{{_singleMeetingId}}\",\n\t\"email\": \"{{_myEmail}}\"\n}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							]
+						},
+						"description": "We can add ourselves as an invitee as well.  (As the meeting organizer this is not strictly necessary, but it allows us to further exercise this API)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting invitees --now 2",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "17690448-db83-42b1-ae24-be670c639474",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"There are two\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).equal(2)",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees?meetingId={{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							],
+							"query": [
+								{
+									"key": "meetingId",
+									"value": "{{_singleMeetingId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting invitees - test max",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "3945e55c-8342-4f20-9aa1-ef760d26b97f",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"query param max=1 was respected\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).to.be.below(2)",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees?meetingId={{_singleMeetingId}}&max=1",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							],
+							"query": [
+								{
+									"key": "meetingId",
+									"value": "{{_singleMeetingId}}"
+								},
+								{
+									"key": "max",
+									"value": "1"
+								}
+							]
+						},
+						"description": "The meetingInvitees api supports a `max` query filter parameter."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Meeting Invitee",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "85f5c83a-2ed4-43a8-acfb-7c777ff03d7a",
+								"exec": [
+									"// Get the response body from the previous GET",
+									"let theInvitee = JSON.parse(pm.collectionVariables.get(\"_meetingInviteeBody\"));",
+									"// Allow the meetingInvitee to be an alternate host",
+									"theInvitee.coHost = true;",
+									"// delete theInvitee.id",
+									"// delete theInvitee.meetingId",
+									"",
+									"// Write the updated body for the PUT back to the environment",
+									"pm.collectionVariables.set(\"_meetingInviteeBody\", JSON.stringify(theInvitee));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"id": "f1ba8fe1-2516-4124-92d6-9c63cab12dcd",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingInvitee = pm.response.json();",
+									"",
+									"pm.test(\"Email of invitee matches\", function () {",
+									"    pm.expect(theMeetingInvitee.email).to.be.a('string');",
+									"    pm.expect(theMeetingInvitee.email).equal(pm.collectionVariables.get(\"OTHER_USERS_EMAIL\"));",
+									"});",
+									"",
+									"pm.test(\"meeting id matches\", function () {",
+									"    pm.expect(theMeetingInvitee.meetingId).equal(pm.collectionVariables.get(\"_singleMeetingId\"));",
+									"});",
+									"",
+									"pm.test(\"invitee is now an alternate host\", function () {",
+									"    pm.expect(theMeetingInvitee.coHost).equal(true);",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{{_meetingInviteeBody}}"
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees/{{_meetingInvitee}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees",
+								"{{_meetingInvitee}}"
+							]
+						},
+						"description": "In the prerequest script we will fetch the saved object that was created when we invited the user with OTHER_USERS_EMAIL collection variable.   By default meeting invitees are not cohosts, but we can modify their meetingInvitee object and use the PUT request to make them one."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete meeting invitee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ddd42808-4371-4db1-99fd-2b12709c2add",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees/{{_meetingInvitee}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees",
+								"{{_meetingInvitee}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting invitees --now 1",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "345fe9b5-78ab-48bb-a740-c3473cb39827",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"There are three invitees\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).equal(1)",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees?meetingId={{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							],
+							"query": [
+								{
+									"key": "meetingId",
+									"value": "{{_singleMeetingId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete second meeting Invitee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "62e6e4b6-6f03-43a0-8d74-4ccf12f1e42d",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees/{{_secondMeetingInvitee}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees",
+								"{{_secondMeetingInvitee}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete non valid invitee - should fail",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "9469fc6f-518f-4a25-9e99-dafc8d4eb0a7",
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response contains a message field\", function () {",
+									"    pm.expect(pm.response.json().message).to.be.a(\"string\");",
+									"});",
+									"",
+									"pm.test(\"Response contains an errors array\", function () {",
+									"    pm.expect(pm.response.json().errors).to.be.an(\"array\");",
+									"});",
+									"",
+									"pm.test(\"Got expected error message\", function () {",
+									"    pm.expect(pm.response.json().message).to.equal(\"Cannot find invitee\");",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees/{{_meetingInvitee}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees",
+								"{{_meetingInvitee}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get meeting invitees --now 0",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "02a59a7f-aad9-47e1-9bed-46b50e10582f",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"List of items was returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items).to.be.an('array')",
+									"});",
+									"",
+									"pm.test(\"There are three invitees\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.items.length).equal(0)",
+									"});",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingInvitees?meetingId={{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingInvitees"
+							],
+							"query": [
+								{
+									"key": "meetingId",
+									"value": "{{_singleMeetingId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete the non recurring meeting",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "7a04333b-853f-47c3-bf44-0b3ca0184982",
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"name": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetings/{{_singleMeetingId}}",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetings",
+								"{{_singleMeetingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cleanup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "520f1505-a42f-4a57-ae03-fc4176cc889d",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "c43bc3ca-4f54-4baf-b560-2fd7bb1db5c4",
+								"exec": [
+									"function cleanup() {",
+									"    const clean = _.keys(pm.collectionVariables.toObject());",
+									"    _.each(clean, (arrItem) => {",
+									"        //console.log(`Evalauating environment varable:${arrItem}`);",
+									"        if (arrItem.startsWith(\"_\")) {",
+									"            //console.log(`Will remove temporary env var:${arrItem}`);",
+									"            pm.collectionVariables.unset(arrItem);",
+									"        }",
+									"    });",
+									"}",
+									"",
+									"// Run the cleanup script which deletes all env vars that start with \"_\"",
+									"cleanup();"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://postman-echo.com/",
+							"protocol": "https",
+							"host": [
+								"postman-echo",
+								"com"
+							],
+							"path": [
+								""
+							]
+						},
+						"description": "This request will run a pre-request script that will delete all the temporary environment variables that have been set."
+					},
+					"response": []
+				}
+			],
+			"description": "Excersise the /meetingInvitees endpoint",
+			"protocolProfileBehavior": {}
+		},
+		{
+			"name": "Meeting Preferences",
+			"item": [
+				{
+					"name": "Get all my meeting preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "24d388e0-afe4-4974-88c5-f4aad048fb42",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingPrefs = pm.response.json();",
+									"pm.collectionVariables.set(\"_meetingPreferences\", JSON.stringify(theMeetingPrefs));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences"
+							]
+						},
+						"description": "The meetingPreferences endpoint exposes all the meeting preferences associated with the user [Doc](https://developer.webex.com/docs/api/v1/meeting-preferences/get-meeting-preference-details)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get personal meeting room preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "ac698bfd-4156-424a-98b3-041988bf205a",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingPrefs = pm.response.json();",
+									"pm.collectionVariables.set(\"_meetingPreferences\", JSON.stringify(theMeetingPrefs));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences/personalMeetingRoom",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences",
+								"personalMeetingRoom"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get audio preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "eaf60e19-9a34-469f-8af6-c58674c5ad87",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingPrefs = pm.response.json();",
+									"pm.collectionVariables.set(\"_audioPreferences\", JSON.stringify(theMeetingPrefs));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences/audio",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences",
+								"audio"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get video preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "507f11c6-3388-4442-88be-d6db97f9b7d3",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingPrefs = pm.response.json();",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences/video",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences",
+								"video"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get site preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "5055f6ce-2fc1-4aba-898e-d55e80598418",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingPrefs = pm.response.json();",
+									"pm.collectionVariables.set(\"_audioPreferences\", JSON.stringify(theMeetingPrefs));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences/sites",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences",
+								"sites"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get scheduling options preferences",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "841f2211-67c7-4e80-a5c5-aa161147011e",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var theMeetingPrefs = pm.response.json();",
+									"pm.collectionVariables.set(\"_schedulingPreferences\", JSON.stringify(theMeetingPrefs));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences/schedulingOptions",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences",
+								"schedulingOptions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update scheduling options",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "69c4d005-6630-4ddd-96f3-3d1c7177a865",
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"var jsonData = pm.response.json();",
+									"",
+									"pm.test(\"_joinBeforeHostMinutes is now \" + pm.collectionVariables.get(\"_joinBeforeHostMinutes\"), function () {",
+									"    pm.expect(jsonData.joinBeforeHostMinutes).to.equal(pm.collectionVariables.get(\"_joinBeforeHostMinutes\"));",
+									"});",
+									"",
+									"",
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "b86a1f91-c606-42ba-8278-b76cc49beb21",
+								"exec": [
+									"// Get the response body from the previous GET",
+									"let thePreferences = JSON.parse(pm.collectionVariables.get(\"_schedulingPreferences\"));",
+									"",
+									"// Change a couple of attributes",
+									"if (thePreferences.joinBeforeHostMinutes <= 5) {",
+									"    thePreferences.joinBeforeHostMinutes += 5;",
+									"} else {",
+									"    thePreferences.joinBeforeHostMinutes -= 5;",
+									"}",
+									"",
+									"// Save the new expected values for our test",
+									"pm.collectionVariables.set(\"_joinBeforeHostMinutes\", thePreferences.joinBeforeHostMinutes);",
+									"",
+									"// Write the updated body for the PUT back to the environment",
+									"pm.collectionVariables.set(\"_schedulingPreferences\", JSON.stringify(thePreferences));",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{_schedulingPreferences}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{MEETINGS_API_URL}}/meetingPreferences/schedulingOptions",
+							"host": [
+								"{{MEETINGS_API_URL}}"
+							],
+							"path": [
+								"meetingPreferences",
+								"schedulingOptions"
+							]
+						},
+						"description": "We can manipulate most aspcects of user preferences.  Here we will add or subtract a 5 minutes to the `joinBeforeHostMinutes` preference"
+					},
+					"response": []
+				},
+				{
+					"name": "Cleanup",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"id": "1c039c63-c7c9-4b46-9c59-9b03a8488c2a",
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"id": "ad190163-f483-42bf-a562-88e4e4872d76",
+								"exec": [
+									"function cleanup() {",
+									"    const clean = _.keys(pm.collectionVariables.toObject());",
+									"    _.each(clean, (arrItem) => {",
+									"        //console.log(`Evalauating environment varable:${arrItem}`);",
+									"        if (arrItem.startsWith(\"_\")) {",
+									"            //console.log(`Will remove temporary env var:${arrItem}`);",
+									"            pm.collectionVariables.unset(arrItem);",
+									"        }",
+									"    });",
+									"}",
+									"",
+									"// Run the cleanup script which deletes all env vars that start with \"_\"",
+									"cleanup();"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://postman-echo.com/",
+							"protocol": "https",
+							"host": [
+								"postman-echo",
+								"com"
+							],
+							"path": [
+								""
+							]
+						},
+						"description": "This request will run a pre-request script that will delete all the temporary environment variables that have been set."
+					},
+					"response": []
+				}
+			],
+			"description": "Excerise the /user/{id}/meetingPreferences endpoint",
+			"protocolProfileBehavior": {}
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{WEBEX_TOKEN}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "97e80057-2ca3-40b1-aab5-e909208ddf8a",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "719eeb61-b395-48f4-91f2-8737f0ff5958",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"id": "cceee7b1-21c3-41a7-8c2d-6116ad0a756f",
+			"key": "WEBEX_TOKEN",
+			"value": "OAuth token for a user configured for meetings in the test environment",
+			"type": "string"
+		},
+		{
+			"id": "3a57699e-c715-4678-9da8-963b8fbf801e",
+			"key": "OTHER_USERS_EMAIL",
+			"value": "an email of another Webex registerd user to invite to a meeting",
+			"type": "string"
+		},
+		{
+			"id": "4c61b66a-e27b-4707-ace9-2e3d508a61c0",
+			"key": "MEETINGS_API_URL",
+			"value": "https://webexapis.com/v1/",
+			"type": "string"
+		},
+		{
+			"id": "5c743d18-d894-4c6a-81f4-ef0826978a5f",
+			"key": "UTCOFFSET",
+			"value": "-04:00",
+			"type": "string"
+		},
+		{
+			"id": "757b89bb-9cf0-4e88-bb01-98b622d1b6e2",
+			"key": "TIMEZONE_STRING",
+			"value": "America/New_York",
+			"type": "string"
+		},
+		{
+			"id": "f328a2f3-b214-4556-9822-3e23ca926f8a",
+			"key": "MAX_RESULTS",
+			"value": "2",
+			"type": "string"
+		}
+	],
+	"protocolProfileBehavior": {}
+}
